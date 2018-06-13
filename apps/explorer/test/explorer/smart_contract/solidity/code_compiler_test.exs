@@ -4,47 +4,56 @@ defmodule Explorer.SmartContract.Solidity.CodeCompilerTest do
   doctest Explorer.SmartContract.Solidity.CodeCompiler
 
   alias Explorer.SmartContract.Solidity.CodeCompiler
+  alias Explorer.Factory
 
   describe "run/2" do
-    test "compiles a smart contract using the solidity command line" do
-      name = "SimpleStorage"
-      optimization = false
+    setup do
+      {:ok, contract_code_info: Factory.contract_code_info()}
+    end
 
-      code = """
-      pragma solidity ^0.4.24;
-
-      contract SimpleStorage {
-          uint storedData;
-
-          function set(uint x) public {
-              storedData = x;
-          }
-
-          function get() public constant returns (uint) {
-              return storedData;
-          }
-      }
-      """
-
-      response = CodeCompiler.run(name, code, optimization)
+    test "compiles the latest solidity version", %{contract_code_info: contract_code_info} do
+      response =
+        CodeCompiler.run(
+          contract_code_info.name,
+          contract_code_info.version,
+          contract_code_info.source_code,
+          contract_code_info.optimized
+        )
 
       assert {:ok,
               %{
                 "abi" => _,
                 "bytecode" => _,
-                "name" => _
+                "name" => _,
+                "opcodes" => _
               }} = response
     end
-  end
 
-  describe "generate_settings/2" do
-    test "creates a json file with the solidity compiler expected settings" do
+    test "compiles a optimized smart contract", %{contract_code_info: contract_code_info} do
+      optimize = true
+
+      response =
+        CodeCompiler.run(
+          contract_code_info.name,
+          contract_code_info.version,
+          contract_code_info.source_code,
+          optimize
+        )
+
+      assert {:ok,
+              %{
+                "abi" => _,
+                "bytecode" => _,
+                "name" => _,
+                "opcodes" => _
+              }} = response
+    end
+
+    test "compile in an older solidity version" do
+      optimize = false
       name = "SimpleStorage"
-      optimization = false
 
       code = """
-      pragma solidity ^0.4.24;
-
       contract SimpleStorage {
           uint storedData;
 
@@ -58,10 +67,31 @@ defmodule Explorer.SmartContract.Solidity.CodeCompilerTest do
       }
       """
 
-      generated = CodeCompiler.generate_settings(name, code, optimization)
+      version = "v0.1.3-nightly.2015.9.25+commit.4457170"
 
-      assert String.contains?(generated, "contract SimpleStorage") == true
-      assert String.contains?(generated, "settings") == true
+      response = CodeCompiler.run(name, version, code, optimize)
+
+      assert {:ok,
+              %{
+                "abi" => _,
+                "bytecode" => _,
+                "name" => _,
+                "opcodes" => _
+              }} = response
+    end
+
+    test "returns a list of errors the compilation isn't possible", %{contract_code_info: contract_code_info} do
+      wrong_code = "pragma solidity ^0.4.24; cont SimpleStorage { "
+
+      response =
+        CodeCompiler.run(
+          contract_code_info.name,
+          contract_code_info.version,
+          wrong_code,
+          contract_code_info.optimized
+        )
+
+      assert {:error, [_ | _]} = response
     end
   end
 end

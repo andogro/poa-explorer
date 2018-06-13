@@ -16,13 +16,16 @@ defmodule Explorer.SmartContract.Verifier do
   def evaluate_authenticity(address_hash, %{
         "name" => name,
         "contract_source_code" => contract_source_code,
-        "optimization" => optimization
+        "optimization" => optimization,
+        "compiler" => compiler_version
       }) do
-    solc_output = CodeCompiler.run(name, contract_source_code, optimization)
+
+    solc_output = CodeCompiler.run(name, compiler_version, contract_source_code, optimization)
+
     compare_bytecodes(solc_output, address_hash)
   end
 
-  defp compare_bytecodes(compilation_error = {:error, _}, _), do: compilation_error
+  defp compare_bytecodes({:error, _}, _), do: {:error, :compilation}
 
   defp compare_bytecodes({:ok, %{"abi" => abi, "bytecode" => bytecode}}, address_hash) do
     generated_bytecode = extract_bytecode(bytecode)
