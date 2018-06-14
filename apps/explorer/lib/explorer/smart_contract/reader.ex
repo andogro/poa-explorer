@@ -1,9 +1,24 @@
 defmodule Explorer.SmartContract.Reader do
   @moduledoc """
   Reads Smart Contract functions from the blockchain.
+
+  For information on smart contract's Application Binary Interface (ABI), visit the
+  [wiki](https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI).
   """
 
   alias Explorer.Chain.Hash
+
+  @typedoc """
+  Data type expected for the output of a smart contract function.
+  """
+  @type result_type :: :integer | :string | :address
+
+  @typedoc """
+  Data type of the output of calling a smart contract function.
+  """
+  @type decoded_result :: :integer | String.t()
+
+  defguardp is_result_type(result_type) when result_type in ~w(address integer string)a
 
   @doc """
   Queries a contract function on the blockchain and returns the call result.
@@ -13,16 +28,18 @@ defmodule Explorer.SmartContract.Reader do
      Explorer.SmartContract.Reader.query_contract(
        "0x62eb5ed811d02e774a53066646e2281ce337a3d9",
        "multiply(uint256)",
-       [10]
+       [10],
+       :integer
      )
-     # => 1024
+     # => {:ok, 1024}
   """
-  def query_contract(address_hash, function_name, args \\ []) do
+  @spec query_contract(String.t(), String.t(), [term()], result_type()) :: {:ok, decoded_result()} | {:error, :invalid_setup | any()}
+  def query_contract(address_hash, function_name, args \\ [], result_type) when is_result_type(result_type) do
     data = setup_call_data(function_name, args)
 
     address_hash
     |> EthereumJSONRPC.execute_contract_function(data)
-    |> decode_call_result()
+    |> decode_result(result_type)
   end
 
   defp setup_call_data(function_name, args) do
@@ -53,8 +70,39 @@ defmodule Explorer.SmartContract.Reader do
     |> String.pad_leading(64, "0")
   end
 
-  # TODO: consider the cases in which the result is not an integer.
-  defp decode_call_result({:ok, "0x" <> result}) do
-    Integer.parse(result, 16)
+  defp decode_result({:ok, "0x"}, _) do
+    {:error, :invalid_setup}
+  end
+
+  defp decode_result({:ok, "0x" <> _ = address}, :address), do
+    {:ok, address}
+  end
+
+  defp decode_result({:ok, "0x" <> result}, type) do
+    binary_data = Base.decode16!(result, case: :mixed)
+    decode(binary_data, type)
+  end
+
+  @bits_per_32_bytes 32 * 8
+
+  @doc false
+  def decode(binary_data, :integer) do
+    <<integer :: integer-size(@bits_per_32_bytes)>> = binary_data
+
+    {:ok, integer}
+  end
+
+  @doc false
+  def decode(binary_data, :string) do
+    # String results should always start at byte index 32
+    <<32 :: integer-size(@bits_per_32_bytes), remaining_data :: binary>> = binary_data
+
+    # Next 32 bytes contains the number of bytes in the string data
+    <<string_length_in_bytes :: integer-size(@bits_per_32_bytes), string_data :: binary>> = remaining_data
+
+    # Grab the strings bytes from the remaining data
+    <<string :: bytes-size(string_length_in_bytes), _rest :: binary>> = string_data
+
+    {:ok, string}
   end
 end
