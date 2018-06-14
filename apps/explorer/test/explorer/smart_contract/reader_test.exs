@@ -5,6 +5,7 @@ defmodule Explorer.SmartContract.ReaderTest do
   doctest Explorer.SmartContract.Reader
 
   alias Explorer.SmartContract.Reader
+
   alias Plug.Conn
   alias Explorer.Chain.Hash
 
@@ -193,6 +194,25 @@ defmodule Explorer.SmartContract.ReaderTest do
       }
 
       assert Reader.decode_result({result, function_selector}) == [42]
+    end
+  end
+
+  test "fetches the smart contract read only functions" do
+    smart_contract = insert(:smart_contract)
+
+    response = Reader.read_only_functions(smart_contract.address_hash)
+
+    assert [
+             %{
+               "constant" => true,
+               "inputs" => _,
+               "name" => _,
+               "outputs" => [%{"blockchain_value" => 0, "name" => "", "type" => "uint256"}],
+               "payable" => _,
+               "stateMutability" => _,
+               "type" => _
+             }
+           ] = response
     end
   end
 end

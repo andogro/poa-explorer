@@ -101,4 +101,21 @@ defmodule Explorer.SmartContract.Reader do
     |> Base.decode16!(case: :lower)
     |> TypeDecoder.decode_raw(List.wrap(function_selector.returns))
   end
+
+  def read_only_functions(address) do
+    smart_contract = Chain.find_smart_contract(address)
+
+    smart_contract.abi
+    |> Enum.filter(& &1["constant"])
+    |> Enum.map(&blockchain_value/1)
+  end
+
+  # TODO: Alter response accordingly with Reader.query_contract/3 response after it is finished.
+  defp blockchain_value(function) do
+    outputs_value =
+      function["outputs"]
+      |> Enum.map(&Map.put_new(&1, "blockchain_value", 0))
+
+    Map.replace!(function, "outputs", outputs_value)
+  end
 end

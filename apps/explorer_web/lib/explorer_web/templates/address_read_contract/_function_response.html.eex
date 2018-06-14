@@ -1,0 +1,4 @@
+<span>
+  [ <%= @function_response.function_name %> method Response ] <br />
+  <i class="fa fa-angle-double-right"></i> <%= @function_response.type %> : <%= @function_response.value %>
+</span>
