@@ -89,12 +89,15 @@ defmodule EthereumJSONRPC do
     Application.fetch_env!(:ethereum_jsonrpc, key)
   end
 
-  def execute_contract_function(address_hash, data) do
-    params = [%{to: address_hash, data: data}]
-
-    %{id: address_hash, method: "eth_call", params: params}
-    |> request()
+  def execute_contract_functions(addresses_and_data) do
+    addresses_and_data
+    |> Enum.map(&build_eth_call_payload/1)
     |> json_rpc(config(:url))
+  end
+
+  defp build_eth_call_payload({address_hash, data}) do
+    params = [%{to: address_hash, data: data}]
+    request(%{id: address_hash, method: "eth_call", params: params})
   end
 
   @doc """
