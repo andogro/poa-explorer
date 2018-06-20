@@ -86,7 +86,9 @@ defmodule Explorer.Mixfile do
       {:postgrex, ">= 0.0.0"},
       {:sobelow, ">= 0.7.0", only: [:dev, :test], runtime: false},
       {:timex, "~> 3.1.24"},
-      {:timex_ecto, "~> 3.2.1"}
+      {:timex_ecto, "~> 3.2.1"},
+      # Encode/decode function names and arguments
+      {:abi, "~> 0.1.8"}
     ]
   end
 

@@ -6,103 +6,69 @@ defmodule Explorer.SmartContract.Reader do
   [wiki](https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI).
   """
 
-  alias Explorer.Chain.Hash
-
-  @typedoc """
-  Data type expected for the output of a smart contract function.
-  """
-  @type result_type :: :integer | :string | :address
+  alias Explorer.Chain
+  alias ABI.TypeDecoder
 
   @typedoc """
   Data type of the output of calling a smart contract function.
   """
   @type decoded_result :: :integer | String.t()
 
-  defguardp is_result_type(result_type) when result_type in ~w(address integer string)a
-
   @doc """
   Queries a contract function on the blockchain and returns the call result.
 
   ## Examples
 
-     Explorer.SmartContract.Reader.query_contract(
-       "0x62eb5ed811d02e774a53066646e2281ce337a3d9",
-       "multiply(uint256)",
-       [10],
-       :integer
-     )
-     # => {:ok, 1024}
+  Note that for this example to work the database must be up to date with the
+  information available in the blockchain.
+
+  Explorer.SmartContract.Reader.query_contract(
+    "0x7e50612682b8ee2a8bb94774d50d6c2955726526",
+    "sum",
+    [20, 22]
+  )
+  # => {:ok, 42}
   """
-  @spec query_contract(String.t(), String.t(), [term()], result_type()) :: {:ok, decoded_result()} | {:error, :invalid_setup | any()}
-  def query_contract(address_hash, function_name, args \\ [], result_type) when is_result_type(result_type) do
-    data = setup_call_data(function_name, args)
+  @spec query_contract(String.t(), String.t(), [term()]) :: {:ok, decoded_result()} | {:error, :invalid_setup | any()}
+  def query_contract(contract_address_hash, function_name, args \\ []) do
+    function_selector =
+      contract_address_hash
+      |> Chain.find_smart_contract()
+      |> Map.get(:abi)
+      |> ABI.parse_specification()
+      |> get_contract_function(function_name)
 
-    address_hash
-    |> EthereumJSONRPC.execute_contract_function(data)
-    |> decode_result(result_type)
+    function_selector
+    |> setup_call_payload(contract_address_hash, args)
+    |> EthereumJSONRPC.execute_contract_functions()
+    |> decode_result(function_selector)
   end
 
-  defp setup_call_data(function_name, args) do
-    function_hash = Hash.binary_to_keccak(function_name)
-    encoded_arguments = encode_arguments(args)
-
-    "0x" <> function_hash <> encoded_arguments
+  defp get_contract_function(abi, function_name) do
+    Enum.find(abi, fn selector -> selector.function == function_name end)
   end
 
-  defp encode_arguments([]), do: ""
-
-  defp encode_arguments(args) do
-    args
-    |> Enum.map(&encode_argument/1)
-    |> Enum.join()
+  defp setup_call_payload(function_selector, contract_address_hash, args) do
+    [
+      {
+        contract_address_hash,
+        "0x" <> encode_function_call(function_selector, args)
+      }
+    ]
   end
 
-  defp encode_argument(int) when is_integer(int) do
-    int
-    |> Integer.to_string(16)
-    |> String.downcase()
-    |> String.pad_leading(64, "0")
-  end
-
-  defp encode_argument(str) when is_binary(str) do
-    str
+  defp encode_function_call(function_selector, args) do
+    function_selector
+    |> ABI.encode(args)
     |> Base.encode16(case: :lower)
-    |> String.pad_leading(64, "0")
   end
 
-  defp decode_result({:ok, "0x"}, _) do
-    {:error, :invalid_setup}
-  end
-
-  defp decode_result({:ok, "0x" <> _ = address}, :address), do
-    {:ok, address}
-  end
-
-  defp decode_result({:ok, "0x" <> result}, type) do
-    binary_data = Base.decode16!(result, case: :mixed)
-    decode(binary_data, type)
-  end
-
-  @bits_per_32_bytes 32 * 8
-
-  @doc false
-  def decode(binary_data, :integer) do
-    <<integer :: integer-size(@bits_per_32_bytes)>> = binary_data
-
-    {:ok, integer}
-  end
-
-  @doc false
-  def decode(binary_data, :string) do
-    # String results should always start at byte index 32
-    <<32 :: integer-size(@bits_per_32_bytes), remaining_data :: binary>> = binary_data
-
-    # Next 32 bytes contains the number of bytes in the string data
-    <<string_length_in_bytes :: integer-size(@bits_per_32_bytes), string_data :: binary>> = remaining_data
-
-    # Grab the strings bytes from the remaining data
-    <<string :: bytes-size(string_length_in_bytes), _rest :: binary>> = string_data
-
-    {:ok, string}
+  defp decode_result({:ok, result}, function_selector) do
+    result
+    |> List.first()
+    |> Map.get("result")
+    |> String.slice(2..-1)
+    |> Base.decode16!(case: :lower)
+    |> TypeDecoder.decode_raw(List.wrap(function_selector.returns))
   end
 end
