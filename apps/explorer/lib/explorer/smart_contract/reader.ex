@@ -9,16 +9,8 @@ defmodule Explorer.SmartContract.Reader do
   alias Explorer.Chain
   alias ABI.TypeDecoder
 
-  @typedoc """
-  Data type of the output of calling a smart contract function.
-  """
-  @type decoded_result :: :integer | String.t()
-
   @doc """
   Queries a contract function on the blockchain and returns the call result.
-
-  For information on smart contract's Application Binary Interface (ABI), visit the
-  [wiki](https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI).
 
   ## Examples
 
