@@ -17,6 +17,9 @@ defmodule Explorer.SmartContract.Reader do
   @doc """
   Queries a contract function on the blockchain and returns the call result.
 
+  For information on smart contract's Application Binary Interface (ABI), visit the
+  [wiki](https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI).
+
   ## Examples
 
   Note that for this example to work the database must be up to date with the
@@ -29,7 +32,7 @@ defmodule Explorer.SmartContract.Reader do
   )
   # => {:ok, 42}
   """
-  @spec query_contract(String.t(), String.t(), [term()]) :: {:ok, decoded_result()} | {:error, :invalid_setup | any()}
+  @spec query_contract(String.t(), String.t(), [term()]) :: [term()]
   def query_contract(contract_address_hash, function_name, args \\ []) do
     function_selector =
       contract_address_hash
