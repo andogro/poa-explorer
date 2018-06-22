@@ -31,7 +31,7 @@ defmodule Explorer.SmartContract.Reader do
       |> Chain.find_smart_contract()
       |> Map.get(:abi)
       |> ABI.parse_specification()
-      |> get_contract_function(function_name)
+      |> get_abi_function(function_name)
 
     function_selector
     |> setup_call_payload(contract_address_hash, args)
@@ -39,11 +39,21 @@ defmodule Explorer.SmartContract.Reader do
     |> decode_result(function_selector)
   end
 
-  defp get_contract_function(abi, function_name) do
+  @doc """
+  Given a list of function selectors from the ABI lib, and a function name, get the selector for that function.
+
+  This list should usually be a Smart Contract abi parsed by the ABI lib.
+  """
+  @spec get_abi_function([%ABI.FunctionSelector{}], String.t()) :: %ABI.FunctionSelector{}
+  def get_abi_function(abi, function_name) do
     Enum.find(abi, fn selector -> selector.function == function_name end)
   end
 
-  defp setup_call_payload(function_selector, contract_address_hash, args) do
+  @doc """
+  Given a function selector, a contract address hash and a (possibly empty) list of arguments, return what EthereumJSONRPC expects.
+  """
+  @spec setup_call_payload(%ABI.FunctionSelector{}, String.t(), [term()]) :: [{String.t(), String.t()}]
+  def setup_call_payload(function_selector, contract_address_hash, args) do
     [
       {
         contract_address_hash,
@@ -52,13 +62,23 @@ defmodule Explorer.SmartContract.Reader do
     ]
   end
 
-  defp encode_function_call(function_selector, args) do
+  @doc """
+  Given a function selector and a list of arguments, return
+  their econded versions.
+
+  This is what is expected on the Json RPC data parameter.
+  """
+  @spec encode_function_call(%ABI.FunctionSelector{}, [term()]) :: String.t()
+  def encode_function_call(function_selector, args) do
     function_selector
     |> ABI.encode(args)
     |> Base.encode16(case: :lower)
   end
 
-  defp decode_result({:ok, result}, function_selector) do
+  @doc """
+  Given a result from the blockchain, and the function selector, returns the result decoded.
+  """
+  def decode_result({:ok, result}, function_selector) do
     result
     |> List.first()
     |> Map.get("result")
