@@ -24,47 +24,52 @@ defmodule Explorer.SmartContract.Reader do
   )
   # => {:ok, 42}
   """
-  @spec query_contract(String.t(), String.t(), [term()]) :: [term()]
-  def query_contract(contract_address_hash, function_name, args \\ []) do
-    function_selector =
+  @spec query_contract(String.t(), [{String.t(), [term()]}]) :: [term()]
+  def query_contract(contract_address_hash, functions_to_execute) do
+    functions_to_execute =
       contract_address_hash
       |> Chain.find_smart_contract()
       |> Map.get(:abi)
       |> ABI.parse_specification()
-      |> get_abi_function(function_name)
+      |> get_selectors(functions_to_execute)
 
-    function_selector
-    |> setup_call_payload(contract_address_hash, args)
+    functions_to_execute
+    |> Enum.map(&setup_call_payload(&1, contract_address_hash))
     |> EthereumJSONRPC.execute_contract_functions()
-    |> decode_result(function_selector)
+    |> decode_results(functions_to_execute)
+  end
+
+  @doc """
+  Given a list of function selectors from the ABI lib, and a list of functions names with their arguments, returns a list of selectors with their functions.
+  """
+  @spec get_selectors([%ABI.FunctionSelector{}], [{String.t(), [term()]}]) :: [{%ABI.FunctionSelector{}, [term()]}]
+  def get_selectors(abi, functions) do
+    Enum.map(functions, fn {function_name, args} ->
+      {get_selector_from_name(abi, function_name), args}
+    end)
   end
 
   @doc """
   Given a list of function selectors from the ABI lib, and a function name, get the selector for that function.
-
-  This list should usually be a Smart Contract abi parsed by the ABI lib.
   """
-  @spec get_abi_function([%ABI.FunctionSelector{}], String.t()) :: %ABI.FunctionSelector{}
-  def get_abi_function(abi, function_name) do
-    Enum.find(abi, fn selector -> selector.function == function_name end)
+  @spec get_selector_from_name([%ABI.FunctionSelector{}], String.t()) :: %ABI.FunctionSelector{}
+  def get_selector_from_name(abi, function_name) do
+    Enum.find(abi, fn selector -> function_name == selector.function end)
   end
 
   @doc """
-  Given a function selector, a contract address hash and a (possibly empty) list of arguments, return what EthereumJSONRPC expects.
+  Given a function selector, a contract address hash and a (possibly empty) list of arguments, returns what EthereumJSONRPC expects.
   """
-  @spec setup_call_payload(%ABI.FunctionSelector{}, String.t(), [term()]) :: [{String.t(), String.t()}]
-  def setup_call_payload(function_selector, contract_address_hash, args) do
-    [
-      {
-        contract_address_hash,
-        "0x" <> encode_function_call(function_selector, args)
-      }
-    ]
+  @spec setup_call_payload({%ABI.FunctionSelector{}, [term()]}, String.t()) :: {String.t(), String.t()}
+  def setup_call_payload({function_selector, args}, contract_address_hash) do
+    {
+      contract_address_hash,
+      "0x" <> encode_function_call(function_selector, args)
+    }
   end
 
   @doc """
-  Given a function selector and a list of arguments, return
-  their econded versions.
+  Given a function selector and a list of arguments, returns their econded versions.
 
   This is what is expected on the Json RPC data parameter.
   """
@@ -76,11 +81,21 @@ defmodule Explorer.SmartContract.Reader do
   end
 
   @doc """
+  Given the result set from the blockchain, and the functions selectors, returns the results decoded.
+  """
+  def decode_results({:ok, results}, functions) do
+    selectors = Enum.map(functions, fn {selectors, _args} -> selectors end)
+
+    results
+    |> Enum.zip(selectors)
+    |> Enum.map(&decode_result/1)
+  end
+
+  @doc """
   Given a result from the blockchain, and the function selector, returns the result decoded.
   """
-  def decode_result({:ok, result}, function_selector) do
+  def decode_result({result, function_selector}) do
     result
-    |> List.first()
     |> Map.get("result")
     |> String.slice(2..-1)
     |> Base.decode16!(case: :lower)
