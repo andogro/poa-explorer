@@ -66,10 +66,7 @@ defmodule Explorer.SmartContract.Solidity.CodeCompiler do
   """
   def run(name, code, optimization) do
     {response, _status} =
-      System.cmd(
-        Application.app_dir(:explorer, "priv/solc.bash"),
-        [generate_settings(name, code, optimization)]
-      )
+      System.cmd(Application.app_dir(:explorer, "priv/solc.bash"), [generate_settings(name, code, optimization)])
 
     Jason.decode!(response)
   end
