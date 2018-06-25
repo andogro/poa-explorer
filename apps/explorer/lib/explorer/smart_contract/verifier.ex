@@ -11,7 +11,9 @@ defmodule Explorer.SmartContract.Verifier do
   alias Explorer.SmartContract.Solidity.CodeCompiler
 
   def evaluate_authenticity(_, %{"name" => ""}), do: {:error, :name}
-  def evaluate_authenticity(_, %{"contract_source_code" => ""}), do: {:error, :contract_source_code}
+
+  def evaluate_authenticity(_, %{"contract_source_code" => ""}),
+    do: {:error, :contract_source_code}
 
   def evaluate_authenticity(address_hash, %{
         "name" => name,
@@ -24,6 +26,7 @@ defmodule Explorer.SmartContract.Verifier do
     compare_bytecodes(solc_output, address_hash)
   end
 
+  defp compare_bytecodes({:error, :name}, _), do: {:error, :name}
   defp compare_bytecodes({:error, _}, _), do: {:error, :compilation}
 
   defp compare_bytecodes({:ok, %{"abi" => abi, "bytecode" => bytecode}}, address_hash) do

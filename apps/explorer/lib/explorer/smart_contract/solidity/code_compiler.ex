@@ -71,36 +71,44 @@ defmodule Explorer.SmartContract.Solidity.CodeCompiler do
         ]
       )
 
-    response
-    |> Jason.decode!()
-    |> parse_response(name)
+    with %{"contracts" => contracts} <- Jason.decode!(response),
+         %{"interface" => abi, "runtimeBytecode" => bytecode, "opcodes" => opcodes} <-
+           get_contract_info(contracts, name) do
+      {
+        :ok,
+        %{
+          "abi" => Jason.decode!(abi),
+          "bytecode" => bytecode,
+          "name" => name,
+          "opcodes" => opcodes
+        }
+      }
+    else
+      error ->
+        parse_error(error)
+    end
   end
 
-  def parse_response(%{"error" => error}, _), do: {:error, [error]}
-  def parse_response(%{"errors" => errors}, _), do: {:error, errors}
+  def get_contract_info(contracts, _) when contracts == %{}, do: %{"errors" => []}
 
-  def parse_response(%{"contracts" => contracts}, name) do
+  def get_contract_info(contracts, name) do
     new_versions_name = ":" <> name
 
-    %{"interface" => abi, "runtimeBytecode" => bytecode, "opcodes" => opcodes} =
-      case contracts do
-        %{^new_versions_name => response} ->
-          response
+    case contracts do
+      %{^new_versions_name => response} ->
+        response
 
-        %{^name => response} ->
-          response
-      end
+      %{^name => response} ->
+        response
 
-    {
-      :ok,
-      %{
-        "abi" => Jason.decode!(abi),
-        "bytecode" => bytecode,
-        "name" => name,
-        "opcodes" => opcodes
-      }
-    }
+      _ ->
+        {:error, :name}
+    end
   end
+
+  def parse_error({:error, :name} = error), do: error
+  def parse_error(%{"error" => error}), do: {:error, [error]}
+  def parse_error(%{"errors" => errors}), do: {:error, errors}
 
   defp optimize_value(false), do: "0"
   defp optimize_value("false"), do: "0"

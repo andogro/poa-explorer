@@ -80,7 +80,9 @@ defmodule Explorer.SmartContract.Solidity.CodeCompilerTest do
               }} = response
     end
 
-    test "returns a list of errors the compilation isn't possible", %{contract_code_info: contract_code_info} do
+    test "returns a list of errors the compilation isn't possible", %{
+      contract_code_info: contract_code_info
+    } do
       wrong_code = "pragma solidity ^0.4.24; cont SimpleStorage { "
 
       response =
@@ -91,7 +93,48 @@ defmodule Explorer.SmartContract.Solidity.CodeCompilerTest do
           contract_code_info.optimized
         )
 
-      assert {:error, [_ | _]} = response
+      assert {:error, errors} = response
+      assert is_list(errors)
+    end
+  end
+
+  describe "get_contract_info/1" do
+    test "return name error when the Contract name doesn't match" do
+      name = "Name"
+      different_name = "diff_name"
+
+      response = CodeCompiler.get_contract_info(%{name => %{}}, different_name)
+
+      assert {:error, :name} == response
+    end
+
+    test "returns an empty list of errors for empty info" do
+      name = "Name"
+
+      response = CodeCompiler.get_contract_info(%{}, name)
+
+      assert %{"errors" => []} == response
+    end
+
+    test "the contract info is returned when the name matches" do
+      contract_inner_info = %{"abi" => %{}, "bytecode" => "", "opcodes" => ""}
+      name = "Name"
+      contract_info = %{name => contract_inner_info}
+
+      response = CodeCompiler.get_contract_info(contract_info, name)
+
+      assert contract_inner_info == response
+    end
+
+    test "the contract info is returned when the name matches with a `:` sufix" do
+      name = "Name"
+      name_with_sufix = ":Name"
+      contract_inner_info = %{"abi" => %{}, "bytecode" => "", "opcodes" => ""}
+      contract_info = %{name_with_sufix => contract_inner_info}
+
+      response = CodeCompiler.get_contract_info(contract_info, name)
+
+      assert contract_inner_info == response
     end
   end
 end
