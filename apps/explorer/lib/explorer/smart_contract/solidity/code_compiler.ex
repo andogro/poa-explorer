@@ -76,6 +76,7 @@ defmodule Explorer.SmartContract.Solidity.CodeCompiler do
     |> parse_response(name)
   end
 
+  def parse_response(%{"error" => error}, _), do: {:error, [error]}
   def parse_response(%{"errors" => errors}, _), do: {:error, errors}
 
   def parse_response(%{"contracts" => contracts}, name) do
